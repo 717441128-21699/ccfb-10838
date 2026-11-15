@@ -16,3 +16,11 @@ node_modules/
 __pycache__/
 .venv/
 venv/
+
+# submask 运行产物
+data/
+output/
+reports/
+submask_state.db
+*.pyc
+.pytest_cache/

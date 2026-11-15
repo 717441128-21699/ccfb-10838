@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submask · 子集抽取与脱敏</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">▦</span>
+    <div>
+      <h1>Submask</h1>
+      <p>生产数据子集抽取 · 关系闭包 · 确定性脱敏</p>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="datasource">数据源</button>
+    <button class="tab" data-tab="graph">关系图</button>
+    <button class="tab" data-tab="rules">抽取规则</button>
+    <button class="tab" data-tab="masking">脱敏策略</button>
+    <button class="tab" data-tab="jobs">作业记录</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ 数据源 ============ -->
+  <section id="tab-datasource" class="panel active">
+    <div class="card">
+      <h2>源数据库 (SQLite)</h2>
+      <div class="row">
+        <input id="ds-path" type="text" placeholder="例如 D:\data\demo_source.db">
+        <button id="ds-connect" class="primary">连接并读取结构</button>
+        <button id="ds-demo" class="ghost" title="使用内置 30 张表演练库">填入演练库路径</button>
+      </div>
+      <p id="ds-status" class="hint"></p>
+    </div>
+    <div class="card" id="ds-tables-card" hidden>
+      <h2>表清单 <span id="ds-table-count" class="badge"></span>
+        <span id="ds-fk-count" class="badge alt"></span></h2>
+      <div class="table-wrap">
+        <table id="ds-tables">
+          <thead><tr><th>表</th><th>行数</th><th>主键</th><th>列</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 关系图 ============ -->
+  <section id="tab-graph" class="panel">
+    <div class="card">
+      <h2>外键关系
+        <span id="graph-declared" class="badge"></span>
+        <span id="graph-inferred" class="badge alt"></span>
+      </h2>
+      <div class="row wrap">
+        <button id="infer-btn" class="primary">推断未声明外键</button>
+        <button id="confirm-btn" class="ghost">保存勾选结果</button>
+        <span class="hint" id="infer-hint"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="infer-table">
+          <thead><tr>
+            <th>采用</th><th>置信度</th><th>子表.列</th><th>→</th>
+            <th>父表.列</th><th>数据重合</th><th>来源</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>关系图（环形引用会形成闭环）</h2>
+      <div id="graph-svg-wrap">
+        <svg id="graph-svg" viewBox="0 0 960 560"></svg>
+      </div>
+      <p class="hint">蓝线 = 声明外键，橙线 = 推断确认；可拖动节点重新布局。</p>
+    </div>
+  </section>
+
+  <!-- ============ 抽取规则 ============ -->
+  <section id="tab-rules" class="panel">
+    <div class="card">
+      <h2>全局设置</h2>
+      <div class="row wrap">
+        <label>日期整体平移天数
+          <input id="date-shift" type="number" value="180" style="width:110px">
+        </label>
+        <label>脱敏 salt（固定后多次作业结果一致）
+          <input id="salt" type="text" value="submask-v1" style="width:200px">
+        </label>
+        <button id="save-settings" class="ghost">保存设置</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>表级规则</h2>
+      <p class="hint">
+        <b>seed</b>：按 WHERE 条件选种子行（如 level_id &gt;= 3）；
+        <b>percent</b>：大表对可达行确定性等距抽样；
+        <b>reach</b>：不预置，仅由关系闭包带入。引用到的父行一条不落。
+      </p>
+      <div class="table-wrap">
+        <table id="rules-table">
+          <thead><tr>
+            <th>表</th><th>模式</th><th>WHERE（seed 用）</th>
+            <th>抽样比例 %（percent 用）</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row"><button id="save-rules" class="primary">保存规则</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 脱敏策略 ============ -->
+  <section id="tab-masking" class="panel">
+    <div class="card">
+      <h2>敏感字段脱敏配置</h2>
+      <p class="hint">
+        name 姓名 · phone 手机号（11 位合法号段）· id_card 身份证（保留生日段、校验位正确）·
+        bank_card 银行卡（保长、Luhn 校验通过）· email 邮箱 · date 日期（随全局平移）。
+        同一原值在所有表映成同一假值，重复作业结果一致。
+      </p>
+      <div id="masking-grid"></div>
+      <div class="row"><button id="save-masking" class="primary">保存脱敏配置</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 作业记录 ============ -->
+  <section id="tab-jobs" class="panel">
+    <div class="card">
+      <h2>作业</h2>
+      <div class="row">
+        <button id="run-job" class="primary">▶ 运行抽取脱敏作业</button>
+        <button id="refresh-jobs" class="ghost">刷新</button>
+        <span id="job-spin" class="hint"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="jobs-table">
+          <thead><tr><th>作业 ID</th><th>开始</th><th>结束</th><th>状态</th>
+            <th>外键错误</th><th>格式错误</th><th>报告</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" id="report-card" hidden>
+      <h2>作业报告 <span id="report-job-id" class="badge alt"></span></h2>
+      <div id="report-summary" class="summary"></div>
+      <h3>各表抽取量</h3>
+      <div class="table-wrap">
+        <table id="report-tables">
+          <thead><tr><th>表</th><th>源行数</th><th>种子行</th>
+            <th>闭包带入</th><th>抽取行</th><th>占比</th><th>状态</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3>敏感字段处理</h3>
+      <div class="table-wrap">
+        <table id="report-masking">
+          <thead><tr><th>表.列</th><th>策略</th><th>处理行数</th>
+            <th>不同假值数</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3>校验明细</h3>
+      <pre id="report-validation"></pre>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
